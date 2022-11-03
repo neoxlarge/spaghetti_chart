@@ -122,8 +122,8 @@ def plotly_sc(data_df,title_text):
     fig.add_trace(label_text)
     #fig.write_html(f"{title_text}.html")
     
-    fig.show()
-
+    #fig.show()
+    return fig
 
 #下載全部幣的資料約5分鐘
 
@@ -158,4 +158,23 @@ spaghetti_df = convent2_pecentage_df(dw_data)
 
 
 
-plotly_sc(spaghetti_df[all_group["Market_cap_part1"]],"Market_cap_part1")
+#plotly_sc(spaghetti_df[all_group["Market_cap_part1"]],"Market_cap_part1")
+
+
+import dash
+from dash import dcc
+from dash import html
+
+fig1 = plotly_sc(spaghetti_df[all_group["Market_cap_part1"]],"Market_cap_part1")
+
+app = dash.Dash(__name__)
+
+app.layout = html.Div(
+
+children = [
+     dcc.Graph(
+         figure = fig1)]
+)
+
+if __name__ == "__main__":
+    app.run_server(debug=True)
