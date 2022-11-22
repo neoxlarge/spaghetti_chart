@@ -8,13 +8,22 @@ import requests
 import datetime as dt
 import time
 
-default_logger = logging.getLogger()
-default_logger.setLevel(logging.INFO)
+
 logformat = logging.Formatter("%(asctime)s - [line:%(lineno)d] - %(levelname)s: %(message)s")
-default_logger.handlers[0].setFormatter(logformat)
 
+mylog = logging.Logger("mylog")
+mylog.setLevel(logging.INFO)
 
+filehandle = logging.FileHandler("mylog.log")
+filehandle.setLevel(logging.INFO)
+filehandle.setFormatter(logformat)
 
+streamhandle = logging.StreamHandler()
+streamhandle.setLevel(logging.INFO)
+streamhandle.setFormatter(logformat)
+
+mylog.addHandler(filehandle)
+mylog.addHandler(streamhandle)
 
 #setting
 
@@ -68,7 +77,7 @@ def update_database():
 
     last_record = cursor.execute(f"select Timestamp from {table_name} order by Timestamp desc limit 1")
     last_record = last_record.fetchall()
-    logging.info(f"last record timestamp: {last_record}" )
+    mylog.info(f"last record timestamp: {last_record}" )
 
     if last_record == []:
         start_timestamp = dt.datetime.now() - dt.timedelta(days=3)
@@ -76,7 +85,7 @@ def update_database():
     else: 
         start_timestamp = last_record[0][0]    
 
-    logging.info(f"star timestamp: {start_timestamp}")
+    mylog.info(f"star timestamp: {start_timestamp}")
 
 
 
@@ -93,7 +102,7 @@ def update_database():
     check_column = check_column.replace("real","").replace("' ","").replace(" '","").split(",")
 
     for symbol in symbol_list:
-        logging.info(f"{symbol} is downloading.")
+        mylog.info(f"{symbol} is downloading.")
         coindata = exchange.fetch_ohlcv(symbol=symbol, timeframe = "15m", since=start_timestamp)
         coindata = [ (i[4],i[0]) for i in coindata]
 
@@ -111,7 +120,7 @@ def update_database():
 
 def sche():
 
-    logging.info("schedule download...")
+    mylog.info("schedule download...")
     update_database()
 
 schedule.every().hour.at(":01").do(sche)    

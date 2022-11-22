@@ -18,3 +18,5 @@ mylog.addHandler(streamhandle)
 
 
 mylog.info("hello")
+
+logging.info("2")
