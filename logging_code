@@ -1,0 +1,20 @@
+import logging
+
+logformat = logging.Formatter("%(asctime)s - [line:%(lineno)d] - %(levelname)s: %(message)s")
+
+mylog = logging.Logger("mylog")
+mylog.setLevel(logging.INFO)
+
+filehandle = logging.FileHandler("mylog.log")
+filehandle.setLevel(logging.INFO)
+filehandle.setFormatter(logformat)
+
+streamhandle = logging.StreamHandler()
+streamhandle.setLevel(logging.INFO)
+streamhandle.setFormatter(logformat)
+
+mylog.addHandler(filehandle)
+mylog.addHandler(streamhandle)
+
+
+mylog.info("hello")
