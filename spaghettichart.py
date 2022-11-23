@@ -9,14 +9,11 @@ from dash import dcc
 from dash import html
 
 
-#setting
+#general setting
 dbfile = "coin.db"
 table_name = "coin_table"
 #@markdown 依BTC或USDT交易對為準
 quote = "BTC" #@param ["BTC", "USDT"]
-#@markdown 資料天數及時框
-days = 2 #@param {type:"slider", min:1, max:30, step:1}
-timeframe = "15m" #@param ["15m", "1h", "4h"]
 #@markdown 依市值分區
 divide = 5 #@param {type:"slider", min:1, max:5, step:1}
 
@@ -50,8 +47,9 @@ def df_from_database(db,table,symbol_list):
     symbol_list: symbol list
     """
     
+    #bug
+    #1INCH可能造成查詢sql出問題, 可以用'號包起來解, 但先把1INCH拿掉,待解.
     conn = sqlite3.connect(db)
-    cursor = conn.cursor()
     list_string = ",".join(symbol_list)
     sql_string = f"select Timestamp,{list_string} from {table}"
     data_df = pd.read_sql_query(sql_string,con=conn)
@@ -146,7 +144,8 @@ def plotly_sc(data_df,title_text):
     
     fig = px.Figure()
     fig["layout"]["template"]="plotly_dark"
-    fig.update_layout(showlegend=False,title=title_text,width=1200,height=600)
+    fig.update_layout(showlegend=False,title=title_text,autosize=True)
+    #fig.update_layout(showlegend=False,title=title_text,width=1200,height=600)
     fig.add_traces(px_list)
     fig.add_trace(label_text)
     #fig.write_html(f"{title_text}.html")
