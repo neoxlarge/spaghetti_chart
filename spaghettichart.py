@@ -1,9 +1,17 @@
-import vectorbt as bt
-import binance
+import ccxt
+import sqlite3
+import datetime as dt
+import pandas as pd
+import plotly.graph_objects as px
+import logging
+import dash
+from dash import dcc
+from dash import html
 
 
-
-#@title 預設標題文字
+#setting
+dbfile = "coin.db"
+table_name = "coin_table"
 #@markdown 依BTC或USDT交易對為準
 quote = "BTC" #@param ["BTC", "USDT"]
 #@markdown 資料天數及時框
@@ -17,15 +25,56 @@ tags = ('Metaverse', 'newListing', 'Launchpool', 'NFT', 'pow', 'Layer1_Layer2',
     'storage-zone', 'Polkadot', 'Infrastructure', 'bnbchain', 'innovation-zone', 'pos', 'mining-zone')
 
 
+# setting logging
+logformat = logging.Formatter("%(asctime)s - [line:%(lineno)d] - %(levelname)s: %(message)s")
+
+mylog = logging.Logger("mylog")
+mylog.setLevel(logging.INFO)
+
+filehandle = logging.FileHandler("mylog.log")
+filehandle.setLevel(logging.INFO)
+filehandle.setFormatter(logformat)
+
+streamhandle = logging.StreamHandler()
+streamhandle.setLevel(logging.INFO)
+streamhandle.setFormatter(logformat)
+
+mylog.addHandler(filehandle)
+mylog.addHandler(streamhandle)
+
+def df_from_database(db,table,symbol_list):
+    """
+    get data from local sqlite database
+    db: database file name
+    table: table name in the database.
+    symbol_list: symbol list
+    """
+    
+    conn = sqlite3.connect(db)
+    cursor = conn.cursor()
+    list_string = ",".join(symbol_list)
+    sql_string = f"select Timestamp,{list_string} from {table}"
+    data_df = pd.read_sql_query(sql_string,con=conn)
+    mylog.info(sql_string)
+
+    data_df["Timestamp"] = pd.to_datetime(data_df["Timestamp"],unit="ms",utc=True).map(lambda x: x.tz_convert('Asia/Taipei'))
+    data_df.set_index("Timestamp",inplace=True)
+
+    return data_df
+    
+
 
 def group_by_market_cap(data_list,divide):
-    """依市值分類"""
-
+    """依市值分類
+    傳入所有幣種資料,和要分幾區.
+    回傳分類好的dict.    
+    """
     market_cap_data = {i["s"] : float(i["cs"]) * float(i["c"]) for i in data_list if i["q"] == quote and\
                                         i["st"] == "TRADING" and\
                                         i["c"] != None and\
                                         i["cs"] != 0 and\
-                                        i["cs"] != None}
+                                        i["cs"] != None and\
+                                        i["b"] != "1INCH"    }
 
     market_cap_data = sorted(market_cap_data.items(),key=lambda d: d[1],reverse=True)
 
@@ -36,16 +85,16 @@ def group_by_market_cap(data_list,divide):
     result = dict()
     while len(market_cap_data) > 0:
         result[f"Market_cap_part{part}"] = market_cap_data[0:section+1]
-        #result.append(data_list[0:section+1])
         market_cap_data = market_cap_data[section+1:]
         part = part + 1
         
     return result    
 
-
-
 def group_by_category(data_list,category):
-    """依板塊分類"""
+    """依板塊分類
+    傳入所有幣種資料,和板塊分類.
+    回傳分類好的dict.   
+    """
     
     group_list=dict()
     for c_index in category:
@@ -55,42 +104,22 @@ def group_by_category(data_list,category):
                                 i["st"] == "TRADING" and\
                                 i["c"] != None and\
                                 i["cs"] != 0 and\
-                                i["cs"] != None]
+                                i["cs"] != None and\
+                                i["b"] != "1INCH"   ]
         group_list[c_index] = group                        
 
     return group_list                        
 
+def get_binance_all_symbol():
+    # 計算每個幣的市值
+    # https://stackoverflow.com/questions/66132843/is-there-a-way-to-get-the-market-cap-or-market-cap-rank-of-a-coin-using-the-bina
 
-import vectorbt as vbt
-import datetime as dt
-import pandas as pd
-import plotly.graph_objects as px
-
-def download_data(data_list):
-    start_date = dt.datetime.now() - dt.timedelta(days=days)
-    end_date = dt.datetime.now()
-
-    download_data = vbt.BinanceData.download(
-    data_list,
-    start = start_date,
-    end = end_date,
-    interval=timeframe,
-    )
-    return download_data
-
-
-def convent2_pecentage_df(data_df):
-    pct_df = pd.DataFrame(data_df.get("Close"))
-    base = pct_df.iloc[0]
-    
-    for i,key in enumerate(pct_df):
-       pct_df[key] = pct_df[key].apply(lambda x : ((x - base[key]) / base[key] * 100))
-    
-    return pct_df
-
-
-
-    
+    #取得Binance幣種資料
+    #
+    import requests
+    re = requests.get("https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products")
+    data = re.json()
+    return data["data"]
 
 def plotly_sc(data_df,title_text):
     px_list = list()
@@ -122,59 +151,81 @@ def plotly_sc(data_df,title_text):
     fig.add_trace(label_text)
     #fig.write_html(f"{title_text}.html")
     
-    #fig.show()
     return fig
 
-#下載全部幣的資料約5分鐘
 
-# 計算每個幣的市值
-# https://stackoverflow.com/questions/66132843/is-there-a-way-to-get-the-market-cap-or-market-cap-rank-of-a-coin-using-the-bina
+def convent2_pecentage_df(data_df):
+    """
+    傳入dataframe,以第0 row為準, 轉成是第0row的%數
+    """
+    #pct_df = pd.DataFrame(data_df.get("Close"))
 
-#取得市值資料
-import requests
-re = requests.get("https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products")
-data = re.json()
-data = data["data"]
+    pct_df = data_df
+    base = pct_df.iloc[0]
+    
+    for i,key in enumerate(pct_df):
+       pct_df[key] = pct_df[key].apply(lambda x : ((x - base[key]) / base[key] * 100))
+    
+    return pct_df
 
-all_symbols = [ i["s"] for i in data if i["q"] == quote and\
-                            i["st"] == "TRADING" and\
-                            i["c"] != None and\
-                            i["cs"] != 0 and\
-                            i["cs"] != None ]  
 
-market_cap_group = group_by_market_cap(data,divide)
 
-category_group = group_by_category(data,tags)
+    #1. get binance all symbol
+all_symbol = get_binance_all_symbol()
 
+    #2. 取得的all symbol,依市值分區.
+market_cap_group = group_by_market_cap(all_symbol,divide)
+    
+
+    #3. 取得的all symbol, 依版塊分區.
+category_group = group_by_category(all_symbol,tags)
+
+#合併
 market_cap_group.update(category_group)
 all_group = market_cap_group
+all_group_radioitems = [ i for i in all_group.keys()]
 
-#download data
-dw_data = download_data(all_symbols)
+#mylog.info(all_group_radioitems)
+    #4. 從資料庫取出資料
+#symbol_list=["ETHBTC","AVAXBTC"]
+#dbdata_df = df_from_database(dbfile,table_name,symbol_list)
 
-
-#convent to pencentage dataframe
-spaghetti_df = convent2_pecentage_df(dw_data)
-
-
-
-#plotly_sc(spaghetti_df[all_group["Market_cap_part1"]],"Market_cap_part1")
+    #convent to pencentage dataframe
+#spaghetti_df = convent2_pecentage_df(dbdata_df)
 
 
-import dash
-from dash import dcc
-from dash import html
 
-fig1 = plotly_sc(spaghetti_df[all_group["Market_cap_part1"]],"Market_cap_part1")
+#fig1 = plotly_sc(spaghetti_df,"Market_cap_part1")
+
+
 
 app = dash.Dash(__name__)
 
-app.layout = html.Div(
+radioitems = dcc.RadioItems(options = all_group_radioitems, value = all_group_radioitems[0],id="selected_item")
+figx = dcc.Graph(id = "fig1_out")
 
-children = [
-     dcc.Graph(
-         figure = fig1)]
-)
+app.layout = html.Div([
+    html.H1("Spaghetti Chart by neoxbitcoin"),
+    dcc.Interval(id='interval-component',
+            interval=1*1000, # in milliseconds
+            n_intervals=0),
+    radioitems,
+    figx,
+    #html.Div(id="test_show")   
+    #dcc.Graph(id='graph'),
+])
 
-if __name__ == "__main__":
-    app.run_server(debug=True)
+@app.callback(
+    dash.Output(component_id="fig1_out",component_property="figure"),
+    dash.Input(component_id="selected_item",component_property="value")
+  )
+def update_fig(input_value):
+    
+    dbdata_df = df_from_database(dbfile,table_name,all_group[input_value])
+    spaghetti_df = convent2_pecentage_df(dbdata_df)
+    fig1 = plotly_sc(spaghetti_df,input_value)
+    return fig1
+
+
+
+app.run_server(port = 8080, host='0.0.0.0')

@@ -1,14 +1,13 @@
 import ccxt
 import schedule
 import logging
-import pandas as pd
 import sqlite3
-import ccxt
 import requests
 import datetime as dt
 import time
 
 
+# setting logging
 logformat = logging.Formatter("%(asctime)s - [line:%(lineno)d] - %(levelname)s: %(message)s")
 
 mylog = logging.Logger("mylog")
@@ -74,7 +73,9 @@ def update_database():
     if table_exists == False:
         cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name}(Timestamp INTEGER PRIMARY KEY)")
         conn.commit()
-
+    
+    #取得最後一筆記錄的timestamp, 抓資料時會以這筆為開頭.
+    #最後一筆資料為未收線的資料, 須要被覆蓋掉.
     last_record = cursor.execute(f"select Timestamp from {table_name} order by Timestamp desc limit 1")
     last_record = last_record.fetchall()
     mylog.info(f"last record timestamp: {last_record}" )
@@ -88,14 +89,15 @@ def update_database():
     mylog.info(f"star timestamp: {start_timestamp}")
 
 
-
     coindata = exchange.fetch_ohlcv(symbol="BTCUSDT", timeframe = "15m",since=start_timestamp)
     coindata = [ (i[0],) for i in coindata]
     coindata = coindata[1:]
+    #先把primay key 先insert into到table, 剩下的格子可以用update的.
     insert_sql = f"insert into {table_name} (Timestamp) values (?)"
     cursor.executemany(insert_sql,coindata)
     conn.commit()
 
+    #檢查symbol是否有己存在次欄位,沒有就新增該欄位.
     check_column = cursor.execute(f"select sql from sqlite_master")
     check_column = check_column.fetchall()[0][0]
     check_column = check_column[check_column.find("KEY,")+4:-1]
@@ -117,17 +119,21 @@ def update_database():
     conn.close()
 
 
+def main():
+    def sche():
 
-def sche():
+        mylog.info("schedule download...")
+        update_database()
 
-    mylog.info("schedule download...")
-    update_database()
+    schedule.every().hour.at(":01").do(sche)    
+    schedule.every().hour.at(":16").do(sche)
+    schedule.every().hour.at(":31").do(sche)  
+    schedule.every().hour.at(":46").do(sche)      
 
-schedule.every().hour.at(":01").do(sche)    
-schedule.every().hour.at(":16").do(sche)
-schedule.every().hour.at(":31").do(sche)  
-schedule.every().hour.at(":46").do(sche)      
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+
+if __name__ == "__main__":
+    main()        
