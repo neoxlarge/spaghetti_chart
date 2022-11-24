@@ -197,7 +197,7 @@ figx = dcc.Graph(id = "fig1_out")
 app.layout = html.Div([
     html.H3("Spaghetti Chart by neoxbitcoin"),
     dcc.Interval(id='interval-component',
-            interval=60*1000, # in milliseconds
+            interval=15*60*1000, # in milliseconds
             n_intervals=0),
     radioitems,
     figx,
@@ -207,13 +207,14 @@ app.layout = html.Div([
 
 @app.callback(
     dash.Output(component_id="fig1_out",component_property="figure"),
-    dash.Input(component_id="selected_item",component_property="value")
+    [dash.Input(component_id="selected_item",component_property="value"),
+    dash.Input('interval-component', "n_intervals")]
   )
-def update_fig(input_value):
+def update_fig(input_value1,input_value2):
     
-    dbdata_df = df_from_database(dbfile,table_name,all_group[input_value])
+    dbdata_df = df_from_database(dbfile,table_name,all_group[input_value1])
     spaghetti_df = convent2_pecentage_df(dbdata_df)
-    title_text = f"{input_value}   timeframe:15m   last upate:{dbdata_df.index[-2] }"
+    title_text = f"{input_value1}   timeframe:15m   last upate:{dbdata_df.index[-2] }"
     fig1 = plotly_sc(spaghetti_df,title_text)
     return fig1
 
