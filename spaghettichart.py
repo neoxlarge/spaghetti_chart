@@ -186,12 +186,10 @@ market_cap_group.update(category_group)
 all_group = market_cap_group
 all_group_radioitems = [ i for i in all_group.keys()]
 
-
-
-
 app = dash.Dash(__name__,external_stylesheets=[dbc.themes.DARKLY])
 
-radioitems = dcc.RadioItems(options = all_group_radioitems, value = all_group_radioitems[0],id="selected_item")
+radioitems = dcc.RadioItems(options = all_group_radioitems, value = all_group_radioitems[0],
+id="selected_item",style={"display":"inline-block","margin": "auto"})
 figx = dcc.Graph(id = "fig1_out")
 
 app.layout = html.Div([
@@ -201,8 +199,6 @@ app.layout = html.Div([
             n_intervals=0),
     radioitems,
     figx,
-    #html.Div(id="test_show")   
-    #dcc.Graph(id='graph'),
 ])
 
 @app.callback(
@@ -214,7 +210,7 @@ def update_fig(input_value1,input_value2):
     
     dbdata_df = df_from_database(dbfile,table_name,all_group[input_value1])
     spaghetti_df = convent2_pecentage_df(dbdata_df)
-    title_text = f"{input_value1}   timeframe:15m   last upate:{dbdata_df.index[-2] }"
+    title_text = f"{input_value1}   timeframe:15m   last upate:{dbdata_df.index[-1] }"
     fig1 = plotly_sc(spaghetti_df,title_text)
     return fig1
 
