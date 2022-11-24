@@ -52,13 +52,13 @@ def df_from_database(db,table,symbol_list):
     #1INCH可能造成查詢sql出問題, 可以用'號包起來解, 但先把1INCH拿掉,待解.
     conn = sqlite3.connect(db)
     list_string = ",".join(symbol_list)
-    sql_string = f"select Timestamp,{list_string} from {table} limit 200"
+    sql_string = f"select * from (select Timestamp,{list_string} from {table} order by Timestamp desc limit 200) order by Timestamp"
     data_df = pd.read_sql_query(sql_string,con=conn)
     mylog.info(sql_string)
 
     data_df["Timestamp"] = pd.to_datetime(data_df["Timestamp"],unit="ms",utc=True).map(lambda x: x.tz_convert('Asia/Taipei'))
     data_df.set_index("Timestamp",inplace=True)
-
+    
     return data_df
     
 
