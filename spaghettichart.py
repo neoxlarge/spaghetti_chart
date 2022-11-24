@@ -7,7 +7,8 @@ import logging
 import dash
 from dash import dcc
 from dash import html
-
+#pip install dash-bootstrap-components
+import dash_bootstrap_components as dbc
 
 #general setting
 dbfile = "coin.db"
@@ -51,7 +52,7 @@ def df_from_database(db,table,symbol_list):
     #1INCH可能造成查詢sql出問題, 可以用'號包起來解, 但先把1INCH拿掉,待解.
     conn = sqlite3.connect(db)
     list_string = ",".join(symbol_list)
-    sql_string = f"select Timestamp,{list_string} from {table}"
+    sql_string = f"select Timestamp,{list_string} from {table} limit 200"
     data_df = pd.read_sql_query(sql_string,con=conn)
     mylog.info(sql_string)
 
@@ -109,11 +110,13 @@ def group_by_category(data_list,category):
     return group_list                        
 
 def get_binance_all_symbol():
-    # 計算每個幣的市值
-    # https://stackoverflow.com/questions/66132843/is-there-a-way-to-get-the-market-cap-or-market-cap-rank-of-a-coin-using-the-bina
-
-    #取得Binance幣種資料
-    #
+    """ 
+    取得Binance幣種資料
+    參考連結
+    計算每個幣的市值
+    https://stackoverflow.com/questions/66132843/is-there-a-way-to-get-the-market-cap-or-market-cap-rank-of-a-coin-using-the-bina
+   
+    """
     import requests
     re = requests.get("https://www.binance.com/exchange-api/v2/public/asset-service/product/get-products")
     data = re.json()
@@ -135,7 +138,7 @@ def plotly_sc(data_df,title_text):
     lastrow = data_df.iloc[-1]
 
     label_text = px.Scatter(
-            x=[lastrow.name + dt.timedelta(minutes=60) for i in lastrow],
+            x=[lastrow.name + dt.timedelta(minutes=180) for i in lastrow],
             y=lastrow.values,
             mode="text",
             marker=(dict(symbol="arrow-left",size=20)),
@@ -148,8 +151,7 @@ def plotly_sc(data_df,title_text):
     #fig.update_layout(showlegend=False,title=title_text,width=1200,height=600)
     fig.add_traces(px_list)
     fig.add_trace(label_text)
-    #fig.write_html(f"{title_text}.html")
-    
+        
     return fig
 
 
@@ -184,29 +186,18 @@ market_cap_group.update(category_group)
 all_group = market_cap_group
 all_group_radioitems = [ i for i in all_group.keys()]
 
-#mylog.info(all_group_radioitems)
-    #4. 從資料庫取出資料
-#symbol_list=["ETHBTC","AVAXBTC"]
-#dbdata_df = df_from_database(dbfile,table_name,symbol_list)
-
-    #convent to pencentage dataframe
-#spaghetti_df = convent2_pecentage_df(dbdata_df)
 
 
 
-#fig1 = plotly_sc(spaghetti_df,"Market_cap_part1")
-
-
-
-app = dash.Dash(__name__)
+app = dash.Dash(__name__,external_stylesheets=[dbc.themes.DARKLY])
 
 radioitems = dcc.RadioItems(options = all_group_radioitems, value = all_group_radioitems[0],id="selected_item")
 figx = dcc.Graph(id = "fig1_out")
 
 app.layout = html.Div([
-    html.H1("Spaghetti Chart by neoxbitcoin"),
+    html.H3("Spaghetti Chart by neoxbitcoin"),
     dcc.Interval(id='interval-component',
-            interval=1*1000, # in milliseconds
+            interval=60*1000, # in milliseconds
             n_intervals=0),
     radioitems,
     figx,
@@ -222,7 +213,8 @@ def update_fig(input_value):
     
     dbdata_df = df_from_database(dbfile,table_name,all_group[input_value])
     spaghetti_df = convent2_pecentage_df(dbdata_df)
-    fig1 = plotly_sc(spaghetti_df,input_value)
+    title_text = f"{input_value}   timeframe:15m   last upate:{dbdata_df.index[-2] }"
+    fig1 = plotly_sc(spaghetti_df,title_text)
     return fig1
 
 
