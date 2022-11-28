@@ -13,7 +13,7 @@ logformat = logging.Formatter("%(asctime)s - [line:%(lineno)d] - %(levelname)s: 
 mylog = logging.Logger("mylog")
 mylog.setLevel(logging.INFO)
 
-filehandle = logging.FileHandler("mylog.log")
+filehandle = logging.FileHandler("mylog.log",mode="w")
 filehandle.setLevel(logging.INFO)
 filehandle.setFormatter(logformat)
 
@@ -28,6 +28,7 @@ mylog.addHandler(streamhandle)
 
 dbfile = "coin.db"
 table_name = "coin_table"
+oi_table_name = "oi_table"
 quote = "BTC"
 
 
@@ -35,7 +36,6 @@ quote = "BTC"
 #Binance 所有現貨ＢＴＣ交易對
 exchange = ccxt.binance()
 market = exchange.load_markets()
-
 
 # 計算每個幣的市值
 # https://stackoverflow.com/questions/66132843/is-there-a-way-to-get-the-market-cap-or-market-cap-rank-of-a-coin-using-the-bina
@@ -59,8 +59,24 @@ def get_market_cap(quote="BTC"):
 
 symbol_list = get_market_cap()  
 
+#binance　所有永續合約(USDT)交易對
+exchange_perp = ccxt.binanceusdm()
+market_perp = exchange_perp.load_markets()
 
-def update_database():
+perp_list = [market_perp[i]["id"] for i in market_perp if market_perp[i]["quote"] == "USDT" and\
+                        market_perp[i]["type"] == "future" and\
+                        market_perp[i]["active"] == True and\
+                        market_perp[i]["expiry"] == None]
+
+
+
+def update_database(symbol_list,dbfile,table_name,chart_type):
+    """
+    symbol_list = ["BTC/USDT","ETHUSDT"],
+    dbfile = database file name.
+    talble_name = table name in the database.
+    chart_type = price or oi
+    """
     #connect database
     conn = sqlite3.connect(dbfile)
     cursor = conn.cursor()
@@ -98,23 +114,42 @@ def update_database():
     conn.commit()
 
     #檢查symbol是否有己存在次欄位,沒有就新增該欄位.
-    check_column = cursor.execute(f"select sql from sqlite_master")
+    check_column = cursor.execute(f"select sql from sqlite_master where tbl_name = '{table_name}'")
     check_column = check_column.fetchall()[0][0]
     check_column = check_column[check_column.find("KEY,")+4:-1]
     check_column = check_column.replace("real","").replace("' ","").replace(" '","").split(",")
 
-    for symbol in symbol_list:
-        mylog.info(f"{symbol} is downloading.")
-        coindata = exchange.fetch_ohlcv(symbol=symbol, timeframe = "15m", since=start_timestamp)
-        coindata = [ (i[4],i[0]) for i in coindata]
+    if chart_type == "price":
+        for symbol in symbol_list:
+            mylog.info(f"{symbol} price is downloading.")
+            coindata = exchange.fetch_ohlcv(symbol=symbol, timeframe = "15m", since=start_timestamp)
+            coindata = [ (i[4],i[0]) for i in coindata] #("Close","Timestamp")
 
-        if symbol not in check_column:
-            cursor.execute(f"alter table '{table_name}' add column '{symbol}' real")
+            if symbol not in check_column:
+                cursor.execute(f"alter table '{table_name}' add column '{symbol}' real")
+                conn.commit()
+
+            update_sql = f"update '{table_name}' set '{symbol}' = ? where Timestamp = ?"
+            cursor.executemany(update_sql,coindata)
             conn.commit()
 
-        update_sql = f"update '{table_name}' set '{symbol}' = ? where Timestamp = ?"
-        cursor.executemany(update_sql,coindata)
-        conn.commit()
+    elif chart_type == "oi":
+        for symbol in symbol_list:
+            mylog.info(f"{symbol} oi is downloading.")
+            oidata = exchange_perp.fetch_open_interest_history(symbol=symbol, timeframe = "15m", since=start_timestamp,limit=300)  #要加limit,不然只會有30個資料. 原因不明.
+            oidata = [(i["baseVolume"],i["timestamp"]) for i in oidata]
+            
+            if symbol not in check_column:
+                cursor.execute(f"alter table '{table_name}' add column '{symbol}' real")
+                conn.commit()
+
+            update_sql = f"update '{table_name}' set '{symbol}' = ? where Timestamp = ?"
+            cursor.executemany(update_sql,oidata)
+            conn.commit()
+
+    else: 
+
+        raise Exception("chart_type wrong! must be 'price' or 'oi'.")            
 
     conn.close()
 
@@ -123,7 +158,8 @@ def main():
     def sche():
 
         mylog.info("schedule download...")
-        update_database()
+        update_database(symbol_list=symbol_list,dbfile=dbfile, table_name=table_name,chart_type="price")
+        update_database(symbol_list=perp_list,dbfile=dbfile, table_name=oi_table_name,chart_type="oi")
 
     schedule.every().hour.at(":01").do(sche)    
     schedule.every().hour.at(":16").do(sche)
