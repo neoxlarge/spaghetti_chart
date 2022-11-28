@@ -13,7 +13,7 @@ logformat = logging.Formatter("%(asctime)s - [line:%(lineno)d] - %(levelname)s: 
 mylog = logging.Logger("mylog")
 mylog.setLevel(logging.INFO)
 
-filehandle = logging.FileHandler("mylog.log")
+filehandle = logging.FileHandler("mylog.log",mode="w")
 filehandle.setLevel(logging.INFO)
 filehandle.setFormatter(logformat)
 

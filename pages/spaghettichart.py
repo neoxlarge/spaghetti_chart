@@ -9,6 +9,8 @@ from dash import html
 #pip install dash-bootstrap-components
 import dash_bootstrap_components as dbc
 
+dash.register_page(__name__,path="/")
+
 #general setting
 dbfile = "coin.db"
 table_name = "coin_table"
@@ -50,8 +52,12 @@ def df_from_database(db,table,symbol_list):
     #bug
     #1INCH可能造成查詢sql出問題, 可以用'號包起來解, 但先把1INCH拿掉,待解.
     conn = sqlite3.connect(db)
+    #symbol_list = [f"'{i}'" for i in symbol_list]
+    
     list_string = ",".join(symbol_list)
+    
     sql_string = f"select * from (select Timestamp,{list_string} from {table} order by Timestamp desc limit 200) order by Timestamp"
+    print(sql_string)
     data_df = pd.read_sql_query(sql_string,con=conn)
     mylog.info(sql_string)
 
@@ -185,14 +191,12 @@ market_cap_group.update(category_group)
 all_group = market_cap_group
 all_group_radioitems = [ i for i in all_group.keys()]
 
-app = dash.Dash(__name__,external_stylesheets=[dbc.themes.DARKLY],use_pages=True)
-
 radioitems = dcc.RadioItems(options = all_group_radioitems, value = all_group_radioitems[0],
 id="selected_item",style={"display":"inline-block","margin": "auto"})
 figx = dcc.Graph(id = "fig1_out")
 
-app.layout = html.Div([
-    html.H3("Spaghetti Chart by neoxbitcoin"),
+layout = html.Div([
+    html.H5("coin price changes in Binance BTC pairs"),
     dcc.Interval(id='interval-component',
             interval=15*60*1000, # in milliseconds
             n_intervals=0),
@@ -200,7 +204,7 @@ app.layout = html.Div([
     figx,
 ])
 
-@app.callback(
+@dash.callback(
     dash.Output(component_id="fig1_out",component_property="figure"),
     [dash.Input(component_id="selected_item",component_property="value"),
     dash.Input('interval-component', "n_intervals")]
@@ -215,4 +219,4 @@ def update_fig(input_value1,input_value2):
 
 
 
-app.run_server(port = 8080, host='0.0.0.0')
+#app.run_server(port = 8080, host='0.0.0.0')
