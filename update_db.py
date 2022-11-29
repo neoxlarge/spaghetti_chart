@@ -34,7 +34,7 @@ quote = "BTC"
 
 
 #Binance 所有現貨ＢＴＣ交易對
-exchange = ccxt.binance()
+exchange = ccxt.binance({"enableRateLimit":True})
 market = exchange.load_markets()
 
 # 計算每個幣的市值
@@ -60,7 +60,7 @@ def get_market_cap(quote="BTC"):
 symbol_list = get_market_cap()  
 
 #binance　所有永續合約(USDT)交易對
-exchange_perp = ccxt.binanceusdm()
+exchange_perp = ccxt.binanceusdm({"enableRateLimit":True})
 market_perp = exchange_perp.load_markets()
 
 perp_list = [market_perp[i]["id"] for i in market_perp if market_perp[i]["quote"] == "USDT" and\
